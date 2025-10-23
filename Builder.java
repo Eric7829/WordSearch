@@ -1,21 +1,23 @@
 import java.io.*;
 import java.util.*;
 
-/**
- * Builder is responsible for constructing a word-search puzzle and its
- * corresponding solution output files from an input word list. Usage:
- *
- * <pre>
- * Builder b = new Builder(inputFile, rows, cols, "solution.txt", "puzzle.txt", true);
- * b.begin(); // runs generation and writes output files
- * </pre>
- *
- * Design notes:
- * - The generator attempts to place words randomly but includes an optional
- *   intersection-first step to guarantee at least one shared-letter intersection
- *   when possible (this satisfies the assignment requirement to allow words
- *   to intersect). This behavior can be controlled via the forceIntersection
- *   constructor parameter.
+/*
+ * Class Name: Builder
+ * Author: Eric Zhao
+ * Version information: Java 21, VS Code
+ * Date: October 23, 2025
+
+ ========
+ * Input: A word list file (one word per line), desired grid dimensions (rows x cols),
+ *        output file names for solution and puzzle, and a boolean flag 'forceIntersection'
+ *        which requests that the generator attempt to create at least one shared-letter
+ *        intersection between placed words when possible.
+ * Output: Two text files: a solution file showing placed words with empty cells as spaces,
+ *         and a puzzle file where all empty cells are filled with random capital letters.
+ * Process: Reads the input words, initializes an empty grid, places words using an
+ *         intersection-first attempt (if requested) followed by randomized placement,
+ *         fills remaining cells with random letters, and writes both output files.
+ ======
  */
 public class Builder {
 	// Constants
@@ -89,15 +91,8 @@ public class Builder {
 			}
 		}
 
-		// Create and initialize the grid with null characters
+		// Create and initialize grid, placed words list, and random generator
 		grid = new char[rows][cols];
-		for (int r = 0; r < rows; r++) {
-			for (int c = 0; c < cols; c++) {
-				grid[r][c] = '\0';
-			}
-		}
-
-		// Prepare helper data
 		successfullyPlacedWords = new ArrayList<>();
 		random = new Random();
 
@@ -106,7 +101,7 @@ public class Builder {
 		// between words (shared letters) to demonstrate the assignment requirement
 		// "Can the words in the puzzle intersect & have letters on the border? (ie. Share same letters)".
 		//
-		// This behavior is controlled by the forceIntersection field set via the constructor.
+		// This behavior is controlled by the forceIntersection field set via the constructor (go to the GUI).
 		// When enabled, the code tries an intersection-first placement for the first word
 		// that can intersect with previously placed words. Once an intersection is achieved,
 		// further words are placed using random placement.
@@ -171,35 +166,17 @@ public class Builder {
 	 * @return true if the word can be placed, false otherwise
 	 */
 	private boolean canPlaceWord(String word, int startRow, int startCol, int dx, int dy, boolean forward) {
-		// Calculate end position
+		// Calculate and check end position bounds
 		int endRow = startRow + dy * (word.length() - 1);
 		int endCol = startCol + dx * (word.length() - 1);
+		if (endRow < 0 || endRow >= rows || endCol < 0 || endCol >= cols) return false;
 
-		// Boundary check
-		if (endRow < 0 || endRow >= rows || endCol < 0 || endCol >= cols) {
-			return false;
-		}
-
-		// Intersection/Conflict check
+		// Check for conflicts with existing letters
 		for (int i = 0; i < word.length(); i++) {
 			int step = forward ? i : word.length() - 1 - i;
-			int row = startRow + dy * step;
-			int col = startCol + dx * step;
-
-			char currentChar = grid[row][col];
-			char wordChar = word.charAt(i);
-
-			// If cell is empty, it's available
-			if (currentChar == '\0') {
-				continue;
-			}
-
-			// If cell has a character, it must match for valid intersection
-			if (currentChar != wordChar) {
-				return false;
-			}
+			char currentChar = grid[startRow + dy * step][startCol + dx * step];
+			if (currentChar != '\0' && currentChar != word.charAt(i)) return false;
 		}
-
 		return true;
 	}
 
@@ -215,52 +192,33 @@ public class Builder {
 		
 		for (WordVector placed : successfullyPlacedWords) {
 			String placedWord = placed.getWord();
-			
-			// Find common letters between words
 			for (int i = 0; i < word.length(); i++) {
 				for (int j = 0; j < placedWord.length(); j++) {
 					if (word.charAt(i) == placedWord.charAt(j)) {
-						// Get the cell position of the placed word's character
 						int[] cell = placed.getCell(j);
-						// Store this as a potential intersection point
-						potentialStarts.add(new IntersectionPoint(
-							cell[0], cell[1], i
-						));
+						potentialStarts.add(new IntersectionPoint(cell[0], cell[1], i));
 					}
 				}
 			}
 		}
 		
-		// Shuffle to try intersections in random order
 		Collections.shuffle(potentialStarts, random);
 		
 		// Try each potential intersection point
 		for (IntersectionPoint point : potentialStarts) {
-			int intersectRow = point.row;
-			int intersectCol = point.col;
-			int wordIndex = point.wordIndex;
-			
-			// Try all 8 directions from this intersection point
 			for (int[] dir : DIRECTIONS) {
 				for (boolean forward : new boolean[]{true, false}) {
-					// Calculate start position so that wordIndex aligns with intersection
-					int step = forward ? wordIndex : word.length() - 1 - wordIndex;
-					int startRow = intersectRow - dir[1] * step;
-					int startCol = intersectCol - dir[0] * step;
+					int step = forward ? point.wordIndex : word.length() - 1 - point.wordIndex;
+					int startRow = point.row - dir[1] * step;
+					int startCol = point.col - dir[0] * step;
 					
 					if (canPlaceWord(word, startRow, startCol, dir[0], dir[1], forward)) {
 						placeWord(word, startRow, startCol, dir[0], dir[1], forward);
-						
-						// NOTE: Intersection was placed here. The placement above was chosen so
-						// that the new word shares the character at (intersectRow, intersectCol)
-						// with an existing placed word. This behavior is intentional to meet
-						// the assignment requirement that words may intersect (share letters).
 						return true;
 					}
 				}
 			}
 		}
-		
 		return false;
 	}
 
@@ -313,26 +271,17 @@ public class Builder {
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(solutionFileName))) {
 			for (int r = 0; r < rows; r++) {
 				for (int c = 0; c < cols; c++) {
-					if (grid[r][c] == '\0') {
-						writer.write(' ');
-					} else {
-						writer.write(grid[r][c]);
-					}
+					writer.write(grid[r][c] == '\0' ? ' ' : grid[r][c]);
 				}
 				writer.newLine();
 			}
 		}
 	}
 
-	/**
-	 * Fills all empty cells with random capital letters.
-	 */
 	private void fillEmptyCells() {
 		for (int r = 0; r < rows; r++) {
 			for (int c = 0; c < cols; c++) {
-				if (grid[r][c] == '\0') {
-					grid[r][c] = (char) ('A' + random.nextInt(26));
-				}
+				if (grid[r][c] == '\0') grid[r][c] = (char) ('A' + random.nextInt(26));
 			}
 		}
 	}
@@ -367,24 +316,13 @@ public class Builder {
 	 * @throws IOException if an I/O error occurs while reading the file
 	 */
 	public static String[] readWordsFromFile(File file) throws IOException {
-		// First, count the number of lines (words)
-		int count = 0;
-		BufferedReader counter = new BufferedReader(new FileReader(file));
-		while (counter.readLine() != null) {
-			count++;
+		List<String> words = new ArrayList<>();
+		try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				words.add(line.trim());
+			}
 		}
-		counter.close();
-
-		//read the words into an array of the correct size
-		String[] words = new String[count];
-		BufferedReader reader = new BufferedReader(new FileReader(file));
-		int i = 0;
-		String line;
-		while ((line = reader.readLine()) != null) {
-			words[i] = line.trim(); // Remove leading/trailing whitespace
-			i++;
-		}
-		reader.close();
-		return words;
+		return words.toArray(new String[0]);
 	}
 }

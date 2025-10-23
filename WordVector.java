@@ -1,6 +1,16 @@
-/**
- * Represents a word's placement and direction in the word search grid.
- * Makes word placement and searching easier.
+/*
+ * Class Name: WordVector
+ * Author: Eric Zhao
+ * Version information: Java 21, VS Code
+ * Date: October 23, 2025
+
+ ========
+ * Input: Constructor parameters (word string, start row, start column, dx, dy, forward flag)
+ * Output: Provides accessors for start position and direction, and helpers to map
+ *         character indices to grid coordinates (getCell, getPath).
+ * Process: Encapsulates placement metadata for a single placed word and computes
+ *         the sequence of grid coordinates corresponding to the word in the puzzle.
+ ======
  */
 public class WordVector {
     final private String word;

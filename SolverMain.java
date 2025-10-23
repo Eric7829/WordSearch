@@ -4,8 +4,8 @@ import javax.swing.*;
 
 /*
  * SolverMain
- * Author: 
- * Version information: 1.0
+ * Author: Eric Zhao
+ * Version information: Java 21, VS Code
  * Date: October 23, 2025
 
  ========

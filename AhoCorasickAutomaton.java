@@ -1,9 +1,9 @@
 import java.util.*;
 
 /*
- * AhoCorasickAutomaton
- * Author:
- * Version information: 1.0
+ * Class Name: AhoCorasickAutomaton
+ * Author: Eric Zhao
+ * Version information: Java 21, VS Code
  * Date: October 23, 2025
 
  ========
@@ -16,6 +16,7 @@ import java.util.*;
  * Process: Builds a Trie of all patterns, computes BFS failure links (explained in documentation),
  *         and performs linear-time scanning of text by walking transitions and following failure links
  *         when mismatches occur. Matches are collected from node output lists (including inherited outputs).
+ * APA Reference: Bor, R. (2020). aho-corasick (Version 0.6.2) [Source code]. GitHub. https://github.com/robert-bor/aho-corasick
  ======
  */
 public class AhoCorasickAutomaton {

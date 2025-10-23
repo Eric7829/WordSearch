@@ -1,9 +1,9 @@
 import java.util.*;
 
 /*
- * WordSearchSolver
- * Author:
- * Version information: 1.0
+ * Class Name: WordSearchSolver
+ * Author: Eric Zhao
+ * Version information: Java 21, VS Code
  * Date: October 23, 2025
  
  ========

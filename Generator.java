@@ -9,7 +9,7 @@
  * and user-specified grid dimensions.
  * =========================================
  * Input: User supplies via GUI: (1) Input Word File name (words 4–8 chars, max 10, one per line); 
- *  (2) Grid Dimensions (R x C, 10 ≤ R, C ≤ 20, requiring validation/re-prompt);
+ *  (2) Grid Dimensions (R x C, 10 ≤ (R, C) ≤ 20, requiring validation/re-prompt);
  *  (3) Output file names (Solution and Puzzle).
  *  Output: Two text files (all letters CAPITALIZED):
  *  (1) Solution File: Shows word placement; empty cells are spaces. 
