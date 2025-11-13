@@ -21,7 +21,6 @@ import java.util.*;
  */
 public class Builder {
 	// Constants
-	private static final int MAX_PLACEMENT_ATTEMPTS = 1000;
 	private static final int[][] DIRECTIONS = {
 		{1, 0}, {-1, 0}, {0, 1}, {0, -1},   // Horizontal and Vertical
 		{1, 1}, {-1, -1}, {1, -1}, {-1, 1}  // Diagonals
@@ -38,15 +37,6 @@ public class Builder {
 	private List<WordVector> successfullyPlacedWords;
 	private Random random;
 
-	/**
-	 * Constructs a Builder with all required data for word search generation.
-	 * @param inputFile the input word file
-	 * @param rows number of rows in the grid
-	 * @param cols number of columns in the grid
-	 * @param solutionFileName output file name for the solution
-	 * @param puzzleFileName output file name for the puzzle
-	 * @param forceIntersection if true, attempts to guarantee at least one word intersection
-	 */
 	public Builder(File inputFile, int rows, int cols, String solutionFileName, String puzzleFileName, boolean forceIntersection) {
 		this.inputFile = inputFile;
 		this.rows = rows;
@@ -56,9 +46,6 @@ public class Builder {
 		this.forceIntersection = forceIntersection;
 	}
 
-	/**
-	 * Main entry point for generation workflow. Call after constructing Builder.
-	 */
 	public void begin() {
 		try {
 			generate();
@@ -67,23 +54,9 @@ public class Builder {
 		}
 	}
 
-	/**
-	 * Main generation method implementing the complete word search algorithm.
-	 * Responsibilities:
-	 *   - Read words from the provided input file
-	 *   - Initialize the grid
-	 *   - Place words using an intersection-first strategy (if available) then
-	 *       randomized placement
-	 *   - Write the solution file, fill empty cells, and write the puzzle file
-	 *   @void no return value
-	 * @throws IOException if there is a problem reading the input or writing
-	 *                     the output files
-	 */
 	public void generate() throws IOException {
-		// Step 1: Initialization and Setup
-		List<String> wordsToPlace = new ArrayList<>();
-		
 		// Read words from file and convert to uppercase
+		List<String> wordsToPlace = new ArrayList<>();
 		try (BufferedReader reader = new BufferedReader(new FileReader(inputFile))) {
 			String line;
 			while ((line = reader.readLine()) != null) {
@@ -91,87 +64,86 @@ public class Builder {
 			}
 		}
 
-		// Create and initialize grid, placed words list, and random generator
+		// Initialize grid and placed words list
 		grid = new char[rows][cols];
 		successfullyPlacedWords = new ArrayList<>();
 		random = new Random();
 
-		// Step 2: Core Word Placement Algorithm
-		// NOTE: The generator can optionally force at least one intersection
-		// between words (shared letters) to demonstrate the assignment requirement
-		// "Can the words in the puzzle intersect & have letters on the border? (ie. Share same letters)".
-		//
-		// This behavior is controlled by the forceIntersection field set via the constructor (go to the GUI).
-		// When enabled, the code tries an intersection-first placement for the first word
-		// that can intersect with previously placed words. Once an intersection is achieved,
-		// further words are placed using random placement.
-		boolean hasIntersection = false; // Track if we've achieved at least one intersection
-		
-		for (String word : wordsToPlace) {
-			boolean placed = false;
-			
-			// If forceIntersection is enabled and we haven't achieved an intersection yet
-			if (forceIntersection && !hasIntersection && !successfullyPlacedWords.isEmpty()) {
-				placed = tryPlaceWordWithIntersection(word);
-				if (placed) {
-					hasIntersection = true; // Mark that we've achieved our required intersection
-				}
-			}
-			
-			// If intersection placement failed or not attempted, use random placement
-			if (!placed) {
-				int attempts = 0;
-				while (!placed && attempts < MAX_PLACEMENT_ATTEMPTS) {
-					// Randomly select placement parameters
-					boolean forward = random.nextBoolean();
-					
-					// Select one of the 8 directions
-					int[] randomDirection = DIRECTIONS[random.nextInt(DIRECTIONS.length)];
-					int dx = randomDirection[0];
-					int dy = randomDirection[1];
-					
-					int startRow = random.nextInt(rows);
-					int startCol = random.nextInt(cols);
-
-					// Check if placement is valid
-					if (canPlaceWord(word, startRow, startCol, dx, dy, forward)) {
-						// Place the word
-						placeWord(word, startRow, startCol, dx, dy, forward);
-						placed = true;
-					}
-					
-					attempts++;
-				}
-			}
-			
-			if (!placed) {
-				System.out.println("Warning: Could not place word: " + word);
-			}
+		// === New: Recursive Backtracking Placement ===
+		boolean allPlaced = placeWordsRecursively(wordsToPlace, 0);
+		if (!allPlaced) {
+			System.out.println("Warning: Not all words could be placed!");
 		}
 
-		// Step 3: Finalize the Grid and Create Output Files
+		// Write outputs
 		writeSolutionFile();
 		fillEmptyCells();
 		writePuzzleFile();
 	}
 
-	/**
-	 * Checks if a word can be placed at the given position and direction.
-	 * @param word the word to place
-	 * @param startRow starting row
-	 * @param startCol starting column
-	 * @param dx direction x
-	 * @param dy direction y
-	 * @param forward true for forward, false for backward
-	 * @return true if the word can be placed, false otherwise
-	 */
+	// === Recursive backtracking main method ===
+	private boolean placeWordsRecursively(List<String> words, int index) {
+		if (index == words.size()) return true; // All words placed!
+
+		String word = words.get(index);
+
+		// Shuffle choices for non-determinism
+		List<int[]> directionsShuffled = new ArrayList<>(Arrays.asList(DIRECTIONS));
+	 Collections.shuffle(directionsShuffled, random);
+
+		for (int[] dir : directionsShuffled) {
+			for (boolean forward : new boolean[]{true, false}) {
+				for (int row = 0; row < rows; row++) {
+					for (int col = 0; col < cols; col++) {
+						if (canPlaceWord(word, row, col, dir[0], dir[1], forward)) {
+							placeWord(word, row, col, dir[0], dir[1], forward);
+							if (placeWordsRecursively(words, index + 1)) {
+								return true;
+						 }
+							// Backtrack!
+							unplaceWord(word, row, col, dir[0], dir[1], forward);
+						}
+					}
+				}
+			}
+		}
+		return false; // Couldn't place this word here
+	}
+
+	// Remove word from grid and placed list
+	private void unplaceWord(String word, int startRow, int startCol, int dx, int dy, boolean forward) {
+		for (int i = 0; i < word.length(); i++) {
+			int step = forward ? i : word.length() - 1 - i;
+			int row = startRow + dy * step;
+			int col = startCol + dx * step;
+
+			// Only remove letter if it was placed by this word (check if it is not used by another word!)
+			boolean usedElsewhere = false;
+			for (WordVector wv : successfullyPlacedWords) {
+				if (wv != null && wv != successfullyPlacedWords.get(successfullyPlacedWords.size() - 1)) {
+					int[] cell = wv.getCellForLetter(grid[row][col], row, col);
+					if (cell != null) {
+						usedElsewhere = true;
+						break;
+					}
+				}
+			}
+			if (!usedElsewhere) {
+				grid[row][col] = '\0';
+			}
+		}
+		// Remove from placed words list
+		if (!successfullyPlacedWords.isEmpty()) {
+			successfullyPlacedWords.remove(successfullyPlacedWords.size() - 1);
+		}
+	}
+
+	// Checks if a word can be placed at the given position and direction.
 	private boolean canPlaceWord(String word, int startRow, int startCol, int dx, int dy, boolean forward) {
-		// Calculate and check end position bounds
 		int endRow = startRow + dy * (word.length() - 1);
 		int endCol = startCol + dx * (word.length() - 1);
 		if (endRow < 0 || endRow >= rows || endCol < 0 || endCol >= cols) return false;
 
-		// Check for conflicts with existing letters
 		for (int i = 0; i < word.length(); i++) {
 			int step = forward ? i : word.length() - 1 - i;
 			char currentChar = grid[startRow + dy * step][startCol + dx * step];
@@ -180,77 +152,10 @@ public class Builder {
 		return true;
 	}
 
-	/**
-	 * Tries to place a word with intersection to an already placed word.
-	 * Finds common letters between the new word and placed words, and attempts placement.
-	 * @param word the word to place
-	 * @return true if word was placed with intersection, false otherwise
-	 */
-	private boolean tryPlaceWordWithIntersection(String word) {
-		// Collect all potential intersection points
-		List<IntersectionPoint> potentialStarts = new ArrayList<>();
-		
-		for (WordVector placed : successfullyPlacedWords) {
-			String placedWord = placed.getWord();
-			for (int i = 0; i < word.length(); i++) {
-				for (int j = 0; j < placedWord.length(); j++) {
-					if (word.charAt(i) == placedWord.charAt(j)) {
-						int[] cell = placed.getCell(j);
-						potentialStarts.add(new IntersectionPoint(cell[0], cell[1], i));
-					}
-				}
-			}
-		}
-		
-		Collections.shuffle(potentialStarts, random);
-		
-		// Try each potential intersection point
-		for (IntersectionPoint point : potentialStarts) {
-			for (int[] dir : DIRECTIONS) {
-				for (boolean forward : new boolean[]{true, false}) {
-					int step = forward ? point.wordIndex : word.length() - 1 - point.wordIndex;
-					int startRow = point.row - dir[1] * step;
-					int startCol = point.col - dir[0] * step;
-					
-					if (canPlaceWord(word, startRow, startCol, dir[0], dir[1], forward)) {
-						placeWord(word, startRow, startCol, dir[0], dir[1], forward);
-						return true;
-					}
-				}
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Helper class to store intersection point information.
-	 * Represents a potential location where a new word can intersect with an existing word.
-	 */
-	private static class IntersectionPoint {
-		int row, col, wordIndex;
-		
-		IntersectionPoint(int row, int col, int wordIndex) {
-			this.row = row;
-			this.col = col;
-			this.wordIndex = wordIndex;
-		}
-	}
-
-	/**
-	 * Places a word on the grid at the specified position and direction.
-	 * @param word the word to place
-	 * @param startRow starting row
-	 * @param startCol starting column
-	 * @param dx direction x
-	 * @param dy direction y
-	 * @param forward true for forward, false for backward
-	 */
 	private void placeWord(String word, int startRow, int startCol, int dx, int dy, boolean forward) {
-		// Create WordVector for tracking
 		WordVector wordVector = new WordVector(word, startRow, startCol, dx, dy, forward);
 		successfullyPlacedWords.add(wordVector);
 
-		// Place each letter on the grid
 		for (int i = 0; i < word.length(); i++) {
 			int step = forward ? i : word.length() - 1 - i;
 			int row = startRow + dy * step;
@@ -259,14 +164,8 @@ public class Builder {
 		}
 	}
 
-	/**
-	 * Writes the solution file showing only placed words (empty cells as spaces).
-	 * The solution file contains the grid with empty cells written as spaces
-	 * and letters where words were placed.
-	 *
-	 * @throws IOException if an I/O error occurs while writing to
-	 *                     {@link #solutionFileName}
-	 */
+	// ==== The following are unchanged ====
+
 	private void writeSolutionFile() throws IOException {
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(solutionFileName))) {
 			for (int r = 0; r < rows; r++) {
@@ -286,14 +185,6 @@ public class Builder {
 		}
 	}
 
-	/**
-	 * Writes the puzzle file with all cells filled (no spaces). This should be
-	 * called after {@link #fillEmptyCells()} so that every cell contains a
-	 * capital letter.
-	 *
-	 * @throws IOException if an I/O error occurs while writing to
-	 *                     {@link #puzzleFileName}
-	 */
 	private void writePuzzleFile() throws IOException {
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(puzzleFileName))) {
 			for (int r = 0; r < rows; r++) {
@@ -305,24 +196,38 @@ public class Builder {
 		}
 	}
 
+	// WordVector should have this method to help unplacing
+	private static class WordVector {
+		private final String word;
+		private final int startRow, startCol, dx, dy;
+		private final boolean forward;
 
-
-	/**
-	 * Reads all words from the specified text file and returns them as a String array.
-	 * Each line in the file is treated as a separate word. Assumes no blank lines.
-	 *
-	 * @param file the input text file containing words (one per line)
-	 * @return a String array of words read from the file
-	 * @throws IOException if an I/O error occurs while reading the file
-	 */
-	public static String[] readWordsFromFile(File file) throws IOException {
-		List<String> words = new ArrayList<>();
-		try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-			String line;
-			while ((line = reader.readLine()) != null) {
-				words.add(line.trim());
-			}
+		public WordVector(String word, int startRow, int startCol, int dx, int dy, boolean forward) {
+			this.word = word;
+			this.startRow = startRow;
+			this.startCol = startCol;
+			this.dx = dx;
+			this.dy = dy;
+			this.forward = forward;
 		}
-		return words.toArray(new String[0]);
+
+		public String getWord() { return word; }
+		// Get the position of the j-th letter in this word
+		public int[] getCell(int j) {
+			int step = forward ? j : word.length() - 1 - j;
+			int row = startRow + dy * step;
+			int col = startCol + dx * step;
+			return new int[]{row, col};
+		}
+		// For unplacing: See if this word uses a given letter in position (row,col)
+		public int[] getCellForLetter(char ch, int row, int col) {
+			for (int i = 0; i < word.length(); i++) {
+				int[] cell = getCell(i);
+				if (cell[0] == row && cell[1] == col && word.charAt(i) == ch) {
+					return cell;
+				}
+			}
+			return null;
+		}
 	}
 }
